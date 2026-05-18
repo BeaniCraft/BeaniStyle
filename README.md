@@ -2,7 +2,7 @@
 
 ![BeaniStyle logo](https://github.com/BeaniCraft/BeaniStyle/blob/main/Assets/logo.png)
 
-## A OpenTaiko skin that aims to be less distracting, while keeping visual flair.
+## An OpenTaiko skin that aims to be less distracting, while keeping visual flair.
 
 <img src="https://img.shields.io/badge/license-OpenTaiko Extended License-1e74fd?style=flat&labelColor=1c1c1c" alt="license: GPL-3.0"/>
 <img src="https://img.shields.io/github/issues/BeaniCraft/BeaniStyle?style=flat&labelColor=1c1c1c" alt="issues - BeaniStyle">
