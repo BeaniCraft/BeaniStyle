@@ -6,8 +6,8 @@
 
 <img src="https://img.shields.io/badge/license-OpenTaiko Extended License-1e74fd?style=flat&labelColor=1c1c1c" alt="license: GPL-3.0"/>
 <img src="https://img.shields.io/github/issues/BeaniCraft/BeaniStyle?style=flat&labelColor=1c1c1c" alt="issues - BeaniStyle">
-<img src="https://img.shields.io/github/stars/BeaniCraft/BeaniStyle?style=flat&labelColor=1c1c1c" alt="stars - BeaniStyle">
-<img src="https://img.shields.io/github/forks/BeaniCraft/BeaniStyle?style=social?style=flat&labelColor=1c1c1c" alt="forks - BeaniStyle">
+<img src="https://img.shields.io/github/stars/BeaniCraft/BeaniStyle?style=flat?style=flat&labelColor=1c1c1c" alt="stars - BeaniStyle">
+<img src="https://img.shields.io/github/forks/BeaniCraft/BeaniStyle?style=flat?style=flat&labelColor=1c1c1c" alt="forks - BeaniStyle">
 <a href="https://discord.gg/yG5BpE6eZH"><img src="https://img.shields.io/discord/1420178805934395434?style=social?style=flat&labelColor=1c1c1c" alt="Discord Server">
 </div>
 
