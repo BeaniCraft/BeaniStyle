@@ -1,42 +1,48 @@
---func:DrawText(x, y, text)
---func:DrawNum(x, y, num)
---func:AddGraph("filename")
---func:DrawGraph(x, y, filename)
---func:DrawRectGraph(x, y, rect_x, rect_y, rect_width, rect_height, filename)
---func:DrawGraphCenter(x, y, filename)
---func:DrawGraphRectCenter(x, y, rect_x, rect_y, rect_width, rect_height, filename)
---func:SetOpacity(opacity, "filename")
---func:SetRotation(angle, "fileName")
---func:SetScale(xscale, yscale, "filename")
---func:SetColor(r, g, b, "filename")
+---@diagnostic disable: undefined-global  -- TEXTURE/fps injected by CLuaScript at runtime
 
 local textLoopWidth = 5569
 local textScrollX = 500
+local currentTime = 0
 
-function clearIn(player)
-end
+local loadingAnimeType = 0
 
-function clearOut(player)
-end
+local tx = {}
 
-function init()
-    func:AddGraph("Background.png")
-    func:AddGraph("Overlay_Right.png")
-    func:AddGraph("Text.png")
-    func:AddGraph("Notes.png")
+function onStart()
+    tx["Background.png"] = TEXTURE:CreateTextureSync("Background.png")
+    tx["Overlay_Right.png"] = TEXTURE:CreateTextureSync("Overlay_Right.png")
+    tx["Text.png"] = TEXTURE:CreateTextureSync("Text.png")
+    tx["Notes.png"] = TEXTURE:CreateTextureSync("Notes.png")
+    for i = 0, 3 do
+        tx["Loading_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Loading_" .. i .. ".png")
+    end
 end
 
 function update()
-    textScrollX = textScrollX + (100 * deltaTime)
+    textScrollX = textScrollX + (100 * fps.deltaTime)
 
     if textScrollX > textLoopWidth then
         textScrollX = 0;
     end
+
+    if loadingAnimeType == 0 then
+        currentTime = (currentTime + fps.deltaTime)
+    elseif loadingAnimeType == 1 then
+    end
 end
 
 function draw()
-    func:DrawGraph(0, 0, "Background.png")
-    func:DrawRectGraph(0, 979, textScrollX, 0, 1920, 101, "Notes.png")
-    func:DrawGraph(120, 350, "Text.png")
-    func:DrawGraph(0, 0, "Overlay_Right.png")
+    tx["Background.png"]:Draw(0, 0)
+    tx["Notes.png"]:DrawRect(0, 979, textScrollX, 0, 1920, 101)
+    tx["Overlay_Right.png"]:Draw(0, 0)
+    tx["Text.png"]:Draw(120, 350)
+
+    tx["Loading_" .. tostring(math.floor(currentTime * 3) % 4) .. ".png"]:Draw(1500, 960)
+end
+
+function onDestroy()
+    for _, t in pairs(tx) do
+        if t ~= nil then t:Dispose() end
+    end
+    tx = {}
 end

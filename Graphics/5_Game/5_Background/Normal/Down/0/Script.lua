@@ -1,9 +1,39 @@
-local bgLoopWidth = 1800
+---@diagnostic disable: undefined-global  -- TEXTURE/fps injected by CLuaScript at runtime
+
+local scrollLoopWidth = 1800
+local scrollRectWidth = 1920
+local scrollRectHeight = 276
+
 local bg1_ScrollX = 0
 local bg2_ScrollX = 0
 
-local bgClearFade = 0
-local bgFade = 0
+local clearOpacity = 0
+
+local tx = {}
+
+local function drawScroll(x, y, rotation, doClear, type)
+    if doClear == true and type ~= "Clear" then
+        if clearOpacity < 255 then
+            tx["Scroll_" .. type .. "_1.png"]:SetRotation(rotation)
+            tx["Scroll_" .. type .. "_2.png"]:SetRotation(rotation)
+            tx["Scroll_" .. type .. "_1.png"]:DrawRect(x, y, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            tx["Scroll_" .. type .. "_2.png"]:DrawRect(x, y, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        end
+        if clearOpacity > 0 then
+            tx["Scroll_Clear_1.png"]:SetOpacity(clearOpacity / 255)
+            tx["Scroll_Clear_2.png"]:SetOpacity(clearOpacity / 255)
+            tx["Scroll_Clear_1.png"]:SetRotation(rotation)
+            tx["Scroll_Clear_2.png"]:SetRotation(rotation)
+            tx["Scroll_Clear_1.png"]:DrawRect(x, y, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            tx["Scroll_Clear_2.png"]:DrawRect(x, y, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        end
+    else
+        tx["Scroll_" .. type .. "_1.png"]:SetRotation(rotation)
+        tx["Scroll_" .. type .. "_2.png"]:SetRotation(rotation)
+        tx["Scroll_" .. type .. "_1.png"]:DrawRect(x, y, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        tx["Scroll_" .. type .. "_2.png"]:DrawRect(x, y, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+    end
+end
 
 function clearIn(player)
 end
@@ -11,118 +41,59 @@ end
 function clearOut(player)
 end
 
-function init()    
-    if (p1IsBlue == false) then
-        func:AddGraph("Down_Left.png");
-        if not simplemode then
-            func:AddGraph("Scroll/Scroll_Left_1.png");
-            func:AddGraph("Scroll/Scroll_Left_2.png"); 
-        end
-    end
-    if (p1IsBlue == true) then
-        func:AddGraph("Down_Right.png");
-        if not simplemode then
-            func:AddGraph("Scroll/Scroll_Right_1.png");
-            func:AddGraph("Scroll/Scroll_Right_2.png");
-        end
-    end
+function onStart()
+    tx["Down_Left.png"] = TEXTURE:CreateTextureSync("Down_Left.png")
+    tx["Down_Right.png"] = TEXTURE:CreateTextureSync("Down_Right.png")
+    tx["Down_Clear.png"] = TEXTURE:CreateTextureSync("Down_Clear.png")
 
-    func:AddGraph("Down_Clear.png");
-    if not simplemode then
-        func:AddGraph("Scroll/Scroll_Clear_1.png");
-        func:AddGraph("Scroll/Scroll_Clear_2.png");
-    end
+    tx["Scroll_Left_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Left_1.png")
+    tx["Scroll_Left_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Left_2.png")
+    tx["Scroll_Right_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Right_1.png")
+    tx["Scroll_Right_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Right_2.png")
+    tx["Scroll_Clear_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Clear_1.png")
+    tx["Scroll_Clear_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Clear_2.png")
 end
 
-function update()
-    if isClear[0] then
-        bgClearFade = bgClearFade + (2000 * deltaTime);
-        bgFade = bgFade - (2000 * deltaTime);
+function update(timestamp, state)
+    if not state.simplemode then
+        bg1_ScrollX = (bg1_ScrollX + (fps.deltaTime * -50)) % scrollLoopWidth
+        bg2_ScrollX = (bg2_ScrollX + (fps.deltaTime * -85)) % scrollLoopWidth
+    end
+
+    if state.isClear[0] then
+        clearOpacity = math.min(clearOpacity + (2000 * fps.deltaTime), 255)
     else
-        bgClearFade = bgClearFade - (2000 * deltaTime);
-        bgFade = bgFade + (2000 * deltaTime);
+        clearOpacity = math.max(clearOpacity - (2000 * fps.deltaTime), 0)
     end
+end
 
-    if bgClearFade > 255 then
-        bgClearFade = 255;
-    end
-    if bgClearFade < 0 then
-        bgClearFade = 0;
-    end
-    if bgFade > 255 then
-        bgFade = 255;
-    end
-    if bgFade < 0 then
-        bgFade = 0;
-    end
-    
-    if not simplemode then
-        bg1_ScrollX = bg1_ScrollX + (-50 * deltaTime);
-        bg2_ScrollX = bg2_ScrollX + (-85 * deltaTime);
-
-        if bg1_ScrollX > bgLoopWidth then
-            bg1_ScrollX = 0;
+function draw(state)
+    if clearOpacity < 255 then
+        if state.p1IsRight then
+            tx["Down_Right.png"]:Draw(0, 540)
+        else
+            tx["Down_Left.png"]:Draw(0, 540)
         end
-
-        if bg2_ScrollX > bgLoopWidth then
-            bg2_ScrollX = 0;
+    end
+    if clearOpacity > 0 then
+        tx["Down_Clear.png"]:SetOpacity(clearOpacity / 255)
+        tx["Down_Clear.png"]:Draw(0, 540) 
+    end
+    --------------------------------------------------
+    if not state.simplemode then
+        if state.p1IsRight then
+            drawScroll(700, 700, 45, true, "Right")
+            drawScroll(700, 700, 45, true, "Right")
+        else
+            drawScroll(700, 700, 45, true, "Left")
+            drawScroll(700, 700, 45, true, "Left")
         end
     end
 end
 
-function draw()
-    if (playerCount == 1 and p1IsBlue == false) then
-        -- Set the opacity for the clear stuff
-        func:SetOpacity(bgClearFade, "Down_Clear.png");
-        if not simplemode then
-            func:SetOpacity(bgClearFade, "Scroll/Scroll_Clear_1.png");
-            func:SetOpacity(bgClearFade, "Scroll/Scroll_Clear_2.png");
-            func:SetOpacity(bgFade, "Scroll/Scroll_Left_1.png");
-            func:SetOpacity(bgFade, "Scroll/Scroll_Left_2.png");
-        end
-        
-        -- Draw the main background
-        func:DrawGraph(0, 540, "Down_Left.png");
-        func:DrawGraph(0, 540, "Down_Clear.png");
-        
-        if not simplemode then
-            -- Draw the scroll thing (idk what to call it)
-            func:SetRotation(45, "Scroll/Scroll_Left_1.png");
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll/Scroll_Left_1.png")
-            func:SetRotation(45, "Scroll/Scroll_Left_2.png");
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll/Scroll_Left_2.png")
-
-            func:SetRotation(45, "Scroll/Scroll_Clear_1.png");
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll/Scroll_Clear_1.png")
-            func:SetRotation(45, "Scroll/Scroll_Clear_2.png");
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll/Scroll_Clear_2.png")
-        end
+function onDestroy()
+    for _, t in pairs(tx) do
+        if t ~= nil then t:Dispose() end
     end
-    if (playerCount == 1 and p1IsBlue == true) then
-        -- Set the opacity for the clear stuff
-        func:SetOpacity(bgClearFade, "Down_Clear.png");
-        if not simplemode then
-            func:SetOpacity(bgClearFade, "Scroll/Scroll_Clear_1.png");
-            func:SetOpacity(bgClearFade, "Scroll/Scroll_Clear_2.png");
-            func:SetOpacity(bgFade, "Scroll/Scroll_Right_1.png");
-            func:SetOpacity(bgFade, "Scroll/Scroll_Right_2.png");
-        end
-
-        -- Draw the main background
-        func:DrawGraph(0, 540, "Down_Right.png");
-        func:DrawGraph(0, 540, "Down_Clear.png");
-        
-        if not simplemode then
-            -- Draw the scroll thing (idk what to call it)
-            func:SetRotation(45, "Scroll/Scroll_Right_1.png");
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll/Scroll_Right_1.png")
-            func:SetRotation(45, "Scroll/Scroll_Right_2.png");
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll/Scroll_Right_2.png")
-
-            func:SetRotation(45, "Scroll/Scroll_Clear_1.png");
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll/Scroll_Clear_1.png")
-            func:SetRotation(45, "Scroll/Scroll_Clear_2.png");
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll/Scroll_Clear_2.png")
-        end
-    end
+    tx = {}
 end

@@ -1,6 +1,13 @@
-local bgLoopWidth = 1800
+---@diagnostic disable: undefined-global  -- TEXTURE/fps injected by CLuaScript at runtime
+-- Code based off of "Open-World Memories V2: Gleaming Sky".
+
+local scrollLoopWidth = 1800
+local scrollRectWidth = 1920
+local scrollRectHeight = 276
+
 local bg1_ScrollX = 0
 local bg2_ScrollX = 0
+local bg3_ScrollX = 0
 
 local timer = 0
 local timerMax = 5
@@ -13,56 +20,41 @@ local speed = 1
 local backgroundType = 1
 local backgroundStatic = false
 
+local tx = {}
+
 function clearIn(player)
 end
 
 function clearOut(player)
 end
 
-function init()  
-    -- oh god
-    func:AddGraph("Background/BG_Static_0.png")
-    func:AddGraph("Background/BG_Static_1.png")
-    func:AddGraph("Background/BG_Static_2.png")
-    func:AddGraph("Background/BG_Left_0.png")
-    func:AddGraph("Background/BG_Left_1.png")
-    func:AddGraph("Background/BG_Left_2.png")
-    func:AddGraph("Background/BG_Right_0.png")
-    func:AddGraph("Background/BG_Right_1.png")
-    func:AddGraph("Background/BG_Right_2.png")
-    func:AddGraph("Background/BG_Clear_0.png")
-    func:AddGraph("Background/BG_Clear_1.png")
-    func:AddGraph("Background/BG_Clear_2.png")  
+function onStart()
+    for i = 0, 2 do
+        tx["BG_Static_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Background/BG_Static_" .. i .. ".png")
+        tx["BG_Left_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Background/BG_Left_" .. i .. ".png")
+        tx["BG_Right_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Background/BG_Right_" .. i .. ".png")
+        tx["BG_Clear_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Background/BG_Clear_" .. i .. ".png")
 
-    if not simplemode then
-        func:AddGraph("Scroll_1/Scroll_Left_0.png")
-        func:AddGraph("Scroll_1/Scroll_Left_1.png")
-        func:AddGraph("Scroll_1/Scroll_Left_2.png")
-        func:AddGraph("Scroll_1/Scroll_Right_0.png")
-        func:AddGraph("Scroll_1/Scroll_Right_1.png")
-        func:AddGraph("Scroll_1/Scroll_Right_2.png")
-        func:AddGraph("Scroll_1/Scroll_Clear_0.png")
-        func:AddGraph("Scroll_1/Scroll_Clear_1.png")
-        func:AddGraph("Scroll_1/Scroll_Clear_2.png")
-
-        func:AddGraph("Scroll_2/Scroll_Left_0.png")
-        func:AddGraph("Scroll_2/Scroll_Left_1.png")
-        func:AddGraph("Scroll_2/Scroll_Left_2.png")
-        func:AddGraph("Scroll_2/Scroll_Right_0.png")
-        func:AddGraph("Scroll_2/Scroll_Right_1.png")
-        func:AddGraph("Scroll_2/Scroll_Right_2.png")
-        func:AddGraph("Scroll_2/Scroll_Clear_0.png")
-        func:AddGraph("Scroll_2/Scroll_Clear_1.png")
-        func:AddGraph("Scroll_2/Scroll_Clear_2.png")
+        tx["Scroll_1_Left_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Scroll_1/Scroll_Left_" .. i .. ".png")
+        tx["Scroll_2_Left_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Scroll_2/Scroll_Left_" .. i .. ".png")
+        tx["Scroll_1_Right_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Scroll_1/Scroll_Right_" .. i .. ".png")
+        tx["Scroll_2_Right_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Scroll_2/Scroll_Right_" .. i .. ".png")
+        tx["Scroll_1_Clear_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Scroll_1/Scroll_Clear_" .. i .. ".png")
+        tx["Scroll_2_Clear_" .. i .. ".png"] = TEXTURE:CreateTextureSync("Scroll_2/Scroll_Clear_" .. i .. ".png")
     end
 end
 
-function update()
-    animeCounter = animeCounter + (speed * deltaTime)
+function update(timestamp, state)
+    if not state.simplemode then
+        bg1_ScrollX = (bg1_ScrollX + (fps.deltaTime * -50)) % scrollLoopWidth
+        bg2_ScrollX = (bg2_ScrollX + (fps.deltaTime * -85)) % scrollLoopWidth
+    end
+
+    animeCounter = animeCounter + (speed * fps.deltaTime)
     nowAnimeFrame = math.floor(animeCounter)
 
     if timer < timerMax then
-        timer = timer + (speed * deltaTime)
+        timer = timer + (speed * fps.deltaTime)
     else
         backgroundStatic = true
         timer = 10
@@ -73,8 +65,8 @@ function update()
             backgroundType = backgroundType + 1
         elseif backgroundType >= 3 then
             backgroundType = 1
-        end 
-    end 
+        end
+    end
 
     if timer >= timerMax and backgroundStatic == true then
         backgroundStatic = false
@@ -89,60 +81,44 @@ function update()
         animeCounter = 0
         nowAnimeFrame = 0
     end
-    
-    if bg1_ScrollX > bgLoopWidth then
-        bg1_ScrollX = 0
+end
+
+function draw(state)
+    if backgroundType == 1 then
+        tx["BG_Left_" .. nowAnimeFrame .. ".png"]:Draw(0, 540)
+    elseif backgroundType == 2 then
+        tx["BG_Right_" .. nowAnimeFrame .. ".png"]:Draw(0, 540)
+    elseif backgroundType == 3 then
+        tx["BG_Clear_" .. nowAnimeFrame .. ".png"]:Draw(0, 540)
     end
 
-    if bg2_ScrollX > bgLoopWidth then
-        bg2_ScrollX = 0
+    if not state.simplemode then
+        if backgroundType == 1 then
+            tx["Scroll_1_Left_" .. nowAnimeFrame .. ".png"]:SetRotation(45)
+            tx["Scroll_2_Left_" .. nowAnimeFrame .. ".png"]:SetRotation(45)
+            tx["Scroll_1_Left_" .. nowAnimeFrame .. ".png"]:DrawRect(700, 700, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            tx["Scroll_2_Left_" .. nowAnimeFrame .. ".png"]:DrawRect(700, 700, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        elseif backgroundType == 2 then
+            tx["Scroll_1_Right_" .. nowAnimeFrame .. ".png"]:SetRotation(45)
+            tx["Scroll_2_Right_" .. nowAnimeFrame .. ".png"]:SetRotation(45)
+            tx["Scroll_1_Right_" .. nowAnimeFrame .. ".png"]:DrawRect(700, 700, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            tx["Scroll_2_Right_" .. nowAnimeFrame .. ".png"]:DrawRect(700, 700, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        elseif backgroundType == 3 then
+            tx["Scroll_1_Clear_" .. nowAnimeFrame .. ".png"]:SetRotation(45)
+            tx["Scroll_2_Clear_" .. nowAnimeFrame .. ".png"]:SetRotation(45)
+            tx["Scroll_1_Clear_" .. nowAnimeFrame .. ".png"]:DrawRect(700, 700, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            tx["Scroll_2_Clear_" .. nowAnimeFrame .. ".png"]:DrawRect(700, 700, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        end
     end
-   
-    if not simplemode then
-        bg1_ScrollX = bg1_ScrollX + (-50 * deltaTime);
-        bg2_ScrollX = bg2_ScrollX + (-85 * deltaTime);
 
-        if bg1_ScrollX > bgLoopWidth then
-            bg1_ScrollX = 0;
-        end
-
-        if bg2_ScrollX > bgLoopWidth then
-            bg2_ScrollX = 0;
-        end
+    if backgroundStatic == true then 
+        tx["BG_Static_" .. nowAnimeFrame .. ".png"]:Draw(0, 540) 
     end
 end
 
-function draw()
-    if backgroundType == 1 then
-        func:DrawGraph(0, 540, "Background/BG_Left_"..tostring(nowAnimeFrame)..".png")
-        if not simplemode then
-            func:SetRotation(45, "Scroll_1/Scroll_Left_"..tostring(nowAnimeFrame)..".png")
-            func:SetRotation(45, "Scroll_2/Scroll_Left_"..tostring(nowAnimeFrame)..".png")
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll_1/Scroll_Left_"..tostring(nowAnimeFrame)..".png")
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll_2/Scroll_Left_"..tostring(nowAnimeFrame)..".png")
-        end
-    elseif backgroundType == 2 then
-        func:DrawGraph(0, 540, "Background/BG_Right_"..tostring(nowAnimeFrame)..".png")
-        if not simplemode then
-            func:SetRotation(45, "Scroll_1/Scroll_Right_"..tostring(nowAnimeFrame)..".png")
-            func:SetRotation(45, "Scroll_2/Scroll_Right_"..tostring(nowAnimeFrame)..".png")
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll_1/Scroll_Right_"..tostring(nowAnimeFrame)..".png")
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll_2/Scroll_Right_"..tostring(nowAnimeFrame)..".png")
-        end
-    elseif backgroundType == 3 then
-        func:DrawGraph(0, 540, "Background/BG_Clear_"..tostring(nowAnimeFrame)..".png")
-        if not simplemode then
-            func:SetRotation(45, "Scroll_1/Scroll_Clear_"..tostring(nowAnimeFrame)..".png")
-            func:SetRotation(45, "Scroll_2/Scroll_Clear_"..tostring(nowAnimeFrame)..".png")
-            func:DrawRectGraph(700, 700, bg1_ScrollX, 0, 1800, 276, "Scroll_1/Scroll_Clear_"..tostring(nowAnimeFrame)..".png")
-            func:DrawRectGraph(700, 700, bg2_ScrollX, 0, 1800, 276, "Scroll_2/Scroll_Clear_"..tostring(nowAnimeFrame)..".png")
-        end
+function onDestroy()
+    for _, t in pairs(tx) do
+        if t ~= nil then t:Dispose() end
     end
-
-    if backgroundStatic == true then
-        func:DrawGraph(0, 540, "Background/BG_Static_"..tostring(nowAnimeFrame)..".png")
-    end
-
-    -- DEBUG INFO
-    -- func:DrawText(0, 0, "timer: "..tostring(timer).."\nbackgroundType: "..tostring(backgroundType).."\nanimeCounter: "..tostring(animeCounter).."\nnowAnimeFrame: "..tostring(nowAnimeFrame))
+    tx = {}
 end

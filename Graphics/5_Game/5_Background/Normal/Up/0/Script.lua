@@ -1,14 +1,48 @@
--- Code from "Open-World Memories V2: Gleaming Sky".
+---@diagnostic disable: undefined-global  -- TEXTURE/fps injected by CLuaScript at runtime
+-- Code based off of "Open-World Memories V2: Gleaming Sky".
 
-local bgLoopWidth = 1800
-local cloudLoopWidth = 1800
-local noteLoopWidth = 1800
+local scrollLoopWidth = 1800
+local scrollRectWidth = 1920
+local scrollRectHeight = 276
 
-local bgScrollX = 0
-local cloudScrollX = 0
-local noteScrollX = 0
+local bg1_ScrollX = 0
+local bg2_ScrollX = 0
+local bg3_ScrollX = 0
 
 local clearOpacity = {0,0}
+
+local tx = {}
+
+local function drawBG(x, y, doClear, type, player, state)
+    if doClear == true and type ~= "Clear" then
+        if clearOpacity[player] < 255 then
+            tx["BG_" .. type .. ".png"]:DrawRect(x, y, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            --------------------------------------------------
+            if not state.simplemode then
+                tx["Scroll_" .. type .. "_1.png"]:DrawRect(x, y, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+                tx["Scroll_" .. type .. "_2.png"]:DrawRect(x, y, bg3_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            end
+        end
+        if clearOpacity[player] > 0 then
+            tx["BG_Clear.png"]:SetOpacity(clearOpacity[player] / 255)
+            tx["BG_Clear.png"]:DrawRect(x, y, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            --------------------------------------------------
+            if not state.simplemode then
+                tx["Scroll_Clear_1.png"]:SetOpacity(clearOpacity[player] / 255)
+                tx["Scroll_Clear_2.png"]:SetOpacity(clearOpacity[player] / 255)
+                tx["Scroll_Clear_1.png"]:DrawRect(x, y, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+                tx["Scroll_Clear_2.png"]:DrawRect(x, y, bg3_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            end
+        end
+    else
+        tx["BG_" .. type .. ".png"]:DrawRect(x, y, bg1_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        --------------------------------------------------
+        if not state.simplemode then
+            tx["Scroll_" .. type .. "_1.png"]:DrawRect(x, y, bg2_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+            tx["Scroll_" .. type .. "_2.png"]:DrawRect(x, y, bg3_ScrollX, 0, scrollRectWidth, scrollRectHeight)
+        end
+    end
+end
 
 function clearIn(player)
 end
@@ -16,130 +50,66 @@ end
 function clearOut(player)
 end
 
-function init()
-    if (playerCount == 1 and p1IsBlue == false) or playerCount == 2 then
-        func:AddGraph("BG_Left.png")
-        if not simplemode then
-            func:AddGraph("Scroll/Scroll_Left_1.png")
-            func:AddGraph("Scroll/Scroll_Left_2.png")
-        end
-    end
-    if (playerCount == 1 and p1IsBlue == true) or playerCount == 2 then
-        func:AddGraph("BG_Right.png")
-        if not simplemode then
-            func:AddGraph("Scroll/Scroll_Right_1.png")
-            func:AddGraph("Scroll/Scroll_Right_2.png")
-        end
-    end
-    if playerCount < 5 then
-        func:AddGraph("BG_Clear.png")
+function onStart()
+    tx["BG_Left.png"] = TEXTURE:CreateTextureSync("BG_Left.png")
+    tx["BG_Right.png"] = TEXTURE:CreateTextureSync("BG_Right.png")
+    tx["BG_Clear.png"] = TEXTURE:CreateTextureSync("BG_Clear.png")
 
-        if playerCount < 4 and not simplemode then
-            func:AddGraph("Scroll/Scroll_Clear_1.png")
-            func:AddGraph("Scroll/Scroll_Clear_2.png")
-        end
-    end
+    tx["Scroll_Left_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Left_1.png")
+    tx["Scroll_Left_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Left_2.png")
+    tx["Scroll_Right_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Right_1.png")
+    tx["Scroll_Right_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Right_2.png")
+    tx["Scroll_Clear_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Clear_1.png")
+    tx["Scroll_Clear_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_Clear_2.png")
 
     -- random values to create initial depth
-    bgScrollX = 500
-    cloudScrollX = 250
-    noteScrollX = 314
+    bg1_ScrollX = 500
+    bg2_ScrollX = 250
+    bg3_ScrollX = 315
 end
 
-function update()
-    bgScrollX = (bgScrollX + (deltaTime * 20)) % bgLoopWidth
-    if not simplemode then
-        cloudScrollX = (cloudScrollX + (deltaTime * 27)) % cloudLoopWidth
-        noteScrollX = (noteScrollX + (deltaTime * 59)) % noteLoopWidth
+function update(timestamp, state)
+    bg1_ScrollX = (bg1_ScrollX + (fps.deltaTime * 20)) % scrollLoopWidth
+    --------------------------------------------------
+    if not state.simplemode then
+        bg2_ScrollX = (bg2_ScrollX + (fps.deltaTime * 27)) % scrollLoopWidth
+        bg3_ScrollX = (bg3_ScrollX + (fps.deltaTime * 59)) % scrollLoopWidth
     end
 
-    if isClear[0] then
-        clearOpacity[1] = math.min(clearOpacity[1] + (2000 * deltaTime), 255)
+    if state.isClear[0] then
+        clearOpacity[1] = math.min(clearOpacity[1] + (2000 * fps.deltaTime), 255)
     else
-        clearOpacity[1] = math.max(clearOpacity[1] - (2000 * deltaTime), 0)
+        clearOpacity[1] = math.max(clearOpacity[1] - (2000 * fps.deltaTime), 0)
     end
 
-    if playerCount == 2 then
-        if isClear[1] then
-            clearOpacity[2] = math.min(clearOpacity[2] + (2000 * deltaTime), 255)
+    if state.playerCount == 2 then
+        if state.isClear[1] then
+            clearOpacity[2] = math.min(clearOpacity[2] + (2000 * fps.deltaTime), 255)
         else
-            clearOpacity[2] = math.max(clearOpacity[2] - (2000 * deltaTime), 0)
-        end        
+            clearOpacity[2] = math.max(clearOpacity[2] - (2000 * fps.deltaTime), 0)
+        end
     end
 end
 
-
-function draw()
-    if playerCount == 1 then
-        if clearOpacity[1] < 255 then
-            if p1IsBlue then
-                func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 288, "BG_Right.png")
-                if not simplemode then
-                    func:DrawRectGraph(0, 0, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Right_1.png")
-                    func:DrawRectGraph(0, 0, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Right_2.png")
-                end
-            else
-                func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 288, "BG_Left.png")
-                if not simplemode then
-                    func:DrawRectGraph(0, 0, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Left_1.png")
-                    func:DrawRectGraph(0, 0, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Left_2.png")
-                end
-            end
+function draw(state)
+    if state.playerCount == 1 then
+        if state.p1IsRight then
+            drawBG(0, 0, true, "Right", 1, state)
+        else
+            drawBG(0, 0, true, "Left", 1, state)
         end
-        if clearOpacity[1] > 0 then
-            func:SetOpacity(clearOpacity[1], "BG_Clear.png")
-            func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 288, "BG_Clear.png")
-            if not simplemode then
-                func:SetOpacity(clearOpacity[1], "Scroll/Scroll_Clear_2.png")
-                func:SetOpacity(clearOpacity[1], "Scroll/Scroll_Clear_1.png")
-                func:DrawRectGraph(0, 0, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_1.png")
-                func:DrawRectGraph(0, 0, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_2.png")
-            end
-        end
-    elseif playerCount == 2 then
-        if clearOpacity[1] < 255 then
-            func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 288, "BG_Left.png")
-            if not simplemode then
-                func:DrawRectGraph(0, 0, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Left_1.png")
-                func:DrawRectGraph(0, 0, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Left_2.png")
-            end
-        end
-        if clearOpacity[1] > 0 then
-            func:SetOpacity(clearOpacity[1], "BG_Clear.png")
-            func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 288, "BG_Clear.png")
-            if not simplemode then
-                func:SetOpacity(clearOpacity[1], "Scroll/Scroll_Clear_2.png")
-                func:SetOpacity(clearOpacity[1], "Scroll/Scroll_Clear_1.png")
-                func:DrawRectGraph(0, 0, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_1.png")
-                func:DrawRectGraph(0, 0, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_2.png")
-            end
-        end
-
-        if clearOpacity[2] < 255 then
-            func:DrawRectGraph(0, 804, bgScrollX, 0, 1920, 288, "BG_Right.png")
-            if not simplemode then
-                func:DrawRectGraph(0, 804, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Right_1.png")
-                func:DrawRectGraph(0, 804, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Right_2.png")
-            end
-        end
-        if clearOpacity[2] > 0 then
-            func:SetOpacity(clearOpacity[2], "BG_Clear.png")
-            func:DrawRectGraph(0, 804, bgScrollX, 0, 1920, 288, "BG_Clear.png")
-            if not simplemode then
-                func:SetOpacity(clearOpacity[2], "Scroll/Scroll_Clear_1.png")
-                func:SetOpacity(clearOpacity[2], "Scroll/Scroll_Clear_2.png")
-                func:DrawRectGraph(0, 804, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_1.png")
-                func:DrawRectGraph(0, 804, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_2.png")
-            end
-        end
-    elseif playerCount == 3 then
-        func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 1080, "BG_Clear.png")
-        func:DrawRectGraph(0, 804, bgScrollX, 0, 1920, 288, "BG_Clear.png")
-        if not simplemode then
-            func:DrawRectGraph(0, 804, cloudScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_1.png")
-            func:DrawRectGraph(0, 804, noteScrollX, 0, 1920, 288, "Scroll/Scroll_Clear_2.png")
-        end
-    elseif playerCount == 4 then
-        func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 1080, "BG_Clear.png")
+    elseif state.playerCount == 2 then
+        drawBG(0, 0, true, "Left", 1, state)
+        drawBG(0, 804, true, "Right", 2, state)
+    elseif state.playerCount == 3 or state.playerCount == 4 then
+        drawBG(0, 0, false, "Clear", 1, state)
+        drawBG(0, 804, false, "Clear", 2, state)
     end
+end
+
+function onDestroy()
+    for _, t in pairs(tx) do
+        if t ~= nil then t:Dispose() end
+    end
+    tx = {}
 end

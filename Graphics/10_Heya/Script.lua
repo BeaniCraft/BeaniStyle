@@ -1,28 +1,21 @@
---func:DrawText(x, y, text)
---func:DrawNum(x, y, num)
---func:AddGraph("filename")
---func:DrawGraph(x, y, filename)
---func:DrawRectGraph(x, y, rect_x, rect_y, rect_width, rect_height, filename)
---func:DrawGraphCenter(x, y, filename)
---func:DrawGraphRectCenter(x, y, rect_x, rect_y, rect_width, rect_height, filename)
---func:SetOpacity(opacity, "filename")
---func:SetRotation(angle, "fileName")
---func:SetScale(xscale, yscale, "filename")
---func:SetColor(r, g, b, "filename")
+---@diagnostic disable: undefined-global  -- TEXTURE/fps injected by CLuaScript at runtime
 
-function clearIn(player)
+local tx = {}
+
+function onStart()
+    tx["Background.png"] = TEXTURE:CreateTextureSync("Background.png")
 end
 
-function clearOut(player)
-end
-
-function init()
-    func:AddGraph("Background.png")
-end
-
-function update()
-end
+-- function update()
+-- end
 
 function draw()
-    func:DrawGraph(0, 0, "Background.png")
+    tx["Background.png"]:Draw(0, 0)
+end
+
+function onDestroy()
+    for _, t in pairs(tx) do
+        if t ~= nil then t:Dispose() end
+    end
+    tx = {}
 end

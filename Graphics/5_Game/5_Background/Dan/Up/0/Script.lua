@@ -1,12 +1,15 @@
--- Code built off of existing code from "Open-World Memories V2: Gleaming Sky".
+---@diagnostic disable: undefined-global  -- TEXTURE/fps injected by CLuaScript at runtime
+-- Up background 3: parallax (bg + cloud + note layers) with infinite horizontal scroll + per-player clear fade.
+-- Ported from the old ScriptBG func: API to the ROActivity LuaTexture API.
+-- Code from "Open-World Memories V2: Gleaming Sky".
 
-local bgLoopWidth = 1800
-local cloudLoopWidth = 1800
-local noteLoopWidth = 1800
+local scrollLoopWidth = 1800
 
-local bgScrollX = 0
-local cloudScrollX = 0
-local noteScrollX = 0
+local bg1_ScrollX = 0
+local bg2_ScrollX = 0
+local bg3_ScrollX = 0
+
+local tx = {}
 
 function clearIn(player)
 end
@@ -14,32 +17,32 @@ end
 function clearOut(player)
 end
 
-function init()
-    func:AddGraph("BG.png")
-    if not simplemode then
-        func:AddGraph("Scroll_1.png")
-        func:AddGraph("Scroll_2.png")
-    end
-    
+function onStart()
+    tx["BG.png"] = TEXTURE:CreateTextureSync("BG.png")
+    tx["Scroll_1.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_1.png")
+    tx["Scroll_2.png"] = TEXTURE:CreateTextureSync("Scroll/Scroll_2.png")
+
     -- random values to create initial depth
-    bgScrollX = 500
-    cloudScrollX = 250
-    noteScrollX = 314
+    bg1_ScrollX = 500
+    bg2_ScrollX = 250
+    bg3_ScrollX = 314
 end
 
-function update()
-    bgScrollX = (bgScrollX + (deltaTime * 20)) % bgLoopWidth
-    if not simplemode then
-        cloudScrollX = (cloudScrollX + (deltaTime * 27)) % cloudLoopWidth
-        noteScrollX = (noteScrollX + (deltaTime * 59)) % noteLoopWidth
-    end
+function update(timestamp, state)
+    bg1_ScrollX = (bg1_ScrollX + (fps.deltaTime * 20)) % scrollLoopWidth
+    bg2_ScrollX = (bg2_ScrollX + (fps.deltaTime * 27)) % scrollLoopWidth
+    bg3_ScrollX = (bg3_ScrollX + (fps.deltaTime * 59)) % scrollLoopWidth
 end
 
+function draw(state)
+    tx["BG.png"]:DrawRect(0, 0, bg1_ScrollX, 0, 1920, 288)
+    tx["Scroll_1.png"]:DrawRect(0, 0, bg2_ScrollX, 0, 1920, 288)
+    tx["Scroll_2.png"]:DrawRect(0, 0, bg3_ScrollX, 0, 1920, 288)
+end
 
-function draw()
-    func:DrawRectGraph(0, 0, bgScrollX, 0, 1920, 288, "BG.png")
-    if not simplemode then
-        func:DrawRectGraph(0, 0, cloudScrollX, 0, 1920, 288, "Scroll_1.png")
-        func:DrawRectGraph(0, 0, noteScrollX, 0, 1920, 288, "Scroll_2.png")
+function onDestroy()
+    for _, t in pairs(tx) do
+        if t ~= nil then t:Dispose() end
     end
+    tx = {}
 end

@@ -1,0 +1,121 @@
+{
+    "_note": "Song-select-core layout. Edit to reposition/retune the song-select and difficulty-select screens without touching Lua. Any missing key falls back to the in-code default, so partial edits are safe. Colours are 'AARRGGBB' hex strings.",
+
+    "navigation": {
+        "box_scroll_seconds": 0.035,
+        "hold_delay_seconds": 0.125,
+        "hold_repeat_seconds": 0.035
+    },
+
+    "song_list": {
+        "origin_x": 650,
+        "origin_y": 540,
+        "offset_x": 15,
+        "offset_y": 82,
+        "text_offset_x": -40,
+        "text_offset_y": 15,
+        "text_max_width": 525,
+        "selected_x_diff": 75,
+        "selected_arrow_gap": 925,
+        "label_x_offset": 272,
+        "level_x_offset": 12,
+        "level_y_offset": 10,
+        "barleft_x_offset": 1,
+        "fav_icon_x_offset": 535,
+        "fav_icon_y_offset": 8
+    },
+
+    "folder_anim": {
+        "offscreen_left_x": -1000,
+        "open_out_seconds": 0.125,
+        "open_fan_seconds": 0.15,
+        "close_group_seconds": 0.1,
+        "close_in_seconds": 0.175
+    },
+
+    "song_info": {
+        "difficulties_origin_x": 1798,
+        "difficulties_origin_y": 146,
+        "difficulties_gap_y": 104,
+        "difficulties_level_origin_x": 65,
+        "difficulties_level_origin_y": 39,
+        "has_video_origin_x": 1247,
+        "has_video_origin_y": 815,
+        "explicit_origin_x": 1247,
+        "explicit_origin_y": 815,
+        "subtitle_origin_x": 1517,
+        "subtitle_origin_y": 697,
+        "subtitle_max_width": 530,
+        "bpm_origin_x": 1418,
+        "bpm_origin_y": 886,
+        "bpm_max_width": 300,
+        "info_origin_x": 1245,
+        "info_origin_y": 714,
+        "info_gap_y": 30,
+        "info_max_width": 540
+    },
+
+    "preimage": {
+        "origin_x": 1278,
+        "origin_y": 146,
+        "size_x": 504,
+        "size_y": 504,
+        "pop_start_scale": 0.85,
+        "pop_duration_ms": 125
+    },
+
+    "preview": {
+        "fade_in_ms": 280,
+        "fade_out_ms": 140
+    },
+
+    "header": {
+        "offset_x": 1876,
+        "box_text_offset_x": 227,
+        "box_text_offset_y": 12,
+        "diffselect_alpha": 0.4,
+        "arrow_offset_y": 35
+    },
+
+    "nameplate": {
+        "box_folded_size_y": 182,
+        "secondary_offset_y": 81,
+        "box_start_x": 0,
+        "box_spacing_x": 384,
+        "offset_x": 27,
+        "offset_y": 37,
+        "height": 81,
+        "puchi_offset_x": 60
+    },
+
+    "difficulty_select": {
+        "chara_35p": { "origin_x": 450, "origin_y": 400, "gap_x": 375, "gap_y": 457, "scale": 0.5 },
+        "chara_12p": { "origin_x": 475, "origin_y": 700, "gap_x": 500, "scale": 0.8 },
+        "option_bars": { 
+            "origin_x": [ 1278, 1492, 1706 ], "origin_y": [ 234, 234, 234 ], "rect_y_offset": 116,
+            "select_x_offset": 0, "select_y_offset": 0
+        },
+        "difficulty_bars": { 
+            "origin_x": 1904, "origin_y": 366, "step_y": 132,
+            "select_x_offset": -626, "select_y_offset": 0,
+            "level_bar_x": 4, "level_bar_y": 64, 
+            "level_number_x": -80, "level_number_y": -50,
+            "charter_offset_x": -645, "charter_offset_y": 22
+        },
+        "vault": { "center_x": 178, "center_y": 215, "max_width": 222 },
+        "nameplate": { "height": 81, "offset_x": 27, "offset_y": 37, "puchi_offset_x": 60 }
+    },
+
+    "colors": {
+        "level": ["FF0057FF", "FF1FAA4F", "FFFF9500", "FFA80027", "FF5900A8"],
+        "level_vault": "FF1F5050",
+        "vault_text": "FF000000",
+        "vault_text_outline": "00000000",
+        "songlist_gold": "FFF2CF01",
+        "vault_gray": "FF808080",
+        "tag_fire": "FFAC0C0C",
+        "tag_storm": "FF83159E",
+        "bpm_slow": "FF95CCFF",
+        "bpm_fast": "FFFF9EC3"
+    }
+}
