@@ -21,8 +21,8 @@ local DIFFSELECT_CHARA_GAP_X_12P = CFG.num("difficulty_select.chara_12p.gap_x", 
 local DIFFSELECT_CHARA_SCALE_12P = CFG.num("difficulty_select.chara_12p.scale", 0.8)
 
 -- Option bars
-local DIFFSELECT_SMALL_BAR_X = CFG.num("difficulty_select.option_bars.origin_x", {1278, 1492, 1706})
-local DIFFSELECT_SMALL_BAR_Y = CFG.num("difficulty_select.option_bars.origin_y", {234, 234, 234})
+local DIFFSELECT_SMALL_BAR_X = CFG.numList("difficulty_select.option_bars.origin_x", {1278, 1492, 1706})
+local DIFFSELECT_SMALL_BAR_Y = CFG.numList("difficulty_select.option_bars.origin_y", {234, 234, 234})
 local DIFFSELECT_SMALL_BAR_SELECT_RECT_Y_OFFSET = CFG.num("difficulty_select.option_bars.rect_y_offset", 116)
 local DIFFSELECT_SMALL_BAR_SELECT_X_OFFSET = CFG.num("difficulty_select.option_bars.select_x_offset", 0)
 local DIFFSELECT_SMALL_BAR_SELECT_Y_OFFSET = CFG.num("difficulty_select.option_bars.select_y_offset", 0)
@@ -35,18 +35,28 @@ local DIFFSELECT_BIG_BAR_SELECT_X_OFFSET = CFG.num("difficulty_select.difficulty
 local DIFFSELECT_BIG_BAR_SELECT_Y_OFFSET = CFG.num("difficulty_select.difficulty_bars.select_y_offset", 0)
 local DIFFSELECT_LEVEL_BAR_X = CFG.num("difficulty_select.difficulty_bars.level_bar_x", 4)
 local DIFFSELECT_LEVEL_BAR_Y = CFG.num("difficulty_select.difficulty_bars.level_bar_y", 64)
-local DIFFSELECT_LEVEL_NB_OFF_X = CFG.num("difficulty_select.difficulty_bars.level_number_x", -80)
+local DIFFSELECT_LEVEL_NB_OFF_X = CFG.num("difficulty_select.difficulty_bars.level_number_x", -79)
 local DIFFSELECT_LEVEL_NB_OFF_Y = CFG.num("difficulty_select.difficulty_bars.level_number_y", -50)
+local DIFFSELECT_LEVEL_NB_MWIDTH = CFG.num("difficulty_select.difficulty_bars.level_max_width", 185)
 local DIFFSELECT_CHARTER_OFFSET_X = CFG.num("difficulty_select.difficulty_bars.charter_offset_x", -645)
 local DIFFSELECT_CHARTER_OFFSET_Y = CFG.num("difficulty_select.difficulty_bars.charter_offset_y", 22)
 
-local DIFFSELECT_LEVEL_COLORS = CFG.colorList("colors.level", {
-    COLOR:CreateColorFromHex("FF0057FF"),
-    COLOR:CreateColorFromHex("FF1FAA4F"),
-    COLOR:CreateColorFromHex("FFFF9500"),
-    COLOR:CreateColorFromHex("FFA80027"),
-    COLOR:CreateColorFromHex("FF5900A8"),
-})
+local DIFFSELECT_LEVEL_COLORS_TOP = {
+    CFG.str("colors.level.0", "#6FC2FF"),
+    CFG.str("colors.level.1", "#AEFFA3"),
+    CFG.str("colors.level.2", "#FFEC83"),
+    CFG.str("colors.level.3", "#FF5B75"),
+    CFG.str("colors.level.4", "#9671FF"),
+    CFG.str("colors.level.5", "#ABABAB")
+}
+local DIFFSELECT_LEVEL_COLORS_BOTTOM = {
+    CFG.str("colors.level.0", "#0057FF"),
+    CFG.str("colors.level.1", "#1FAA4F"),
+    CFG.str("colors.level.2", "#FF9500"),
+    CFG.str("colors.level.3", "#A80027"),
+    CFG.str("colors.level.4", "#5900A8"),
+    CFG.str("colors.level.5", "#434343")
+}
 
 local NAMEPLATE_HEIGHT = CFG.num("difficulty_select.nameplate.height", 81)
 local NAMEPLATE_OFFSET_X = CFG.num("difficulty_select.nameplate.offset_x", 27)
@@ -71,12 +81,13 @@ function M.loadDiffBars(ssn)
         local chart = ssn:GetChart(i)
         if chart ~= nil then
             table.insert(G.diffBars, {
-                vault      = isVault,
-                level      = chart.Level,
-                isplus     = chart.IsPlus,
-                charter    = chart.NotesDesigner,
+                vault = isVault,
+                level = chart.Level,
+                levelDecimal = chart.LevelDecimal,
+                isplus = chart.IsPlus,
+                charter = chart.NotesDesigner,
                 difficulty = i,
-                vaultName  = isVault and chart:GetCustomCommand(".VAULT_NAME") or nil,
+                vaultName = isVault and chart:GetCustomCommand(".VAULT_NAME") or nil,
             })
         end
     end
@@ -98,8 +109,37 @@ end
 
 -- ── Private draw helpers ──────────────────────────────────────────────────────
 
+-- ── Mouse ─────────────────────────────────────────────────────────────────────
+-- the screen rectangle of bar `index` (options 0..2, difficulties 3+) as drawn below, or nil
+local function barRect(index)
+    if index < 3 then
+        local tex = G.difftx["smallbar" .. index]
+        if tex == nil then return nil end
+        local x, y = DIFFSELECT_SMALL_BAR_X[index + 1], DIFFSELECT_SMALL_BAR_Y[index + 1]
+        return x, y - tex.Height, tex.Width, tex.Height                       -- drawn "bottomleft"
+    end
+    local barinfo = G.diffBars[index - 2]
+    if barinfo == nil then return nil end
+    local tex = G.difftx["difficultybar" .. (barinfo.vault and 5 or barinfo.difficulty)]
+    if tex == nil then return nil end
+    local x = DIFFSELECT_BIG_BAR_ORIG_X
+    local y = DIFFSELECT_BIG_BAR_ORIG_Y + (index - 3) * DIFFSELECT_BIG_BAR_GAP_Y
+    return x - tex.Width, y - tex.Height, tex.Width, tex.Height               -- drawn "bottomright"
+end
+
+-- the diffIndex under the mouse, or nil; the later-drawn bars win overlaps
+local function mouseTarget()
+    if not INPUT:IsMouseInside() then return nil end
+    local mx, my = INPUT:GetMouseXY()
+    for index = 2 + #G.diffBars, 0, -1 do
+        local x, y, w, h = barRect(index)
+        if x ~= nil and mx >= x and mx <= x + w and my >= y and my <= y + h then return index end
+    end
+    return nil
+end
+
 local function drawDifficultyBar(index, barinfo)
-    local tex    = G.difftx["difficultybar7"]
+    local tex    = G.difftx["difficultybar5"]   -- the vault bar
     if barinfo.vault == false then
         tex = G.difftx["difficultybar" .. (barinfo.difficulty)]
     end
@@ -140,17 +180,20 @@ local function drawDifficultyBar(index, barinfo)
     bartx:DrawRect(xbar, ybar, 0, 0, bartx.Width * (math.min(10, barinfo.level) / 10), bartx.Height)
     if barinfo.level > 10 then
         local anim = G.difftx["difficultybarlevel6"]
-        anim:DrawRect(xbar, ybar, 0, bartx.Height * G.levelLabelFrame,
-            bartx.Width * (math.min(3, barinfo.level - 10) / 3), bartx.Height)
+        anim:DrawRect(
+            xbar, ybar, 0, bartx.Height * G.levelLabelFrame,
+            bartx.Width * (math.min(3, barinfo.level - 10) / 3), bartx.Height
+        )
     end
 
-    local lvnbcol = COLOR:CreateColorFromHex("FF434343")
-    if barinfo.vault == false then lvnbcol = DIFFSELECT_LEVEL_COLORS[barinfo.difficulty + 1] end
-
+    -- local lvnbcol = COLOR:CreateColorFromHex("FF434343")
+    -- if barinfo.vault == false then lvnbcol = DIFFSELECT_LEVEL_COLORS[barinfo.difficulty + 1] end
+    -- DIFFSELECT_LEVEL_COLOR_ .. index
+    -- index
     G.textXL:Draw(
-        tostring(barinfo.level),
+        "<g." .. DIFFSELECT_LEVEL_COLORS_TOP[barinfo.difficulty + 1] .. "." .. DIFFSELECT_LEVEL_COLORS_BOTTOM[barinfo.difficulty + 1] .. ">" .. G.formatLevel(tostring(barinfo.levelDecimal)) .. "</g>",
         xpos + DIFFSELECT_LEVEL_NB_OFF_X, ypos + DIFFSELECT_LEVEL_NB_OFF_Y,
-        nil, nil, G.difficultySelectElemOpacity / 255, 1, 150, "center"
+        nil, nil, G.difficultySelectElemOpacity / 255, 1, DIFFSELECT_LEVEL_NB_MWIDTH, "center"
     )
 end
 
@@ -225,7 +268,7 @@ function M.drawPanel()
             local y      = oy + r * gy
             G.drawCharaWithNameplate(i, x, y, s, s, opacityNorm, false)
             local charaX = x + G.bgtx["nameplate_info"].Width / 2 - NAMEPLATE_OFFSET_X
-            G.drawPlayerPuchi(i, charaX - PUCHI_OFFSET_X * s, y + G.puchiSineY * s, s, s, opacityNorm)
+            G.drawPlayerPuchi(i, charaX - PUCHI_OFFSET_X * s, y + G.puchiSineY * s, s, s, opacityNorm, false, G.puchiIdxFrame)
             if G.modicons_ro ~= nil then
                 G.modicons_ro:Draw(x, y + NAMEPLATE_HEIGHT + 4, i, nil, G.difficultySelectElemOpacity)
             end
@@ -269,7 +312,6 @@ function M.handleUpdate(ts)
             uniNavPlayer = i + 1
         end
         local navPn = G.NavInput.p[i]
-        local inputPn = G.inputSets[i]
 
         if G.activeConfig.mountAISlotToP2 and i == 2 then
             -- AI mirrors P1
@@ -278,18 +320,28 @@ function M.handleUpdate(ts)
 
             -- AI level slider (AI battle only)
             if navPn.left(i == uniNavPlayer) and CONFIG.AILevel > 1 then
-                CONFIG.AILevel = CONFIG.AILevel - 1; G.sounds.Skip:Play()
+                CONFIG.AILevel = CONFIG.AILevel - 1; G.sounds.Move:Play()
             elseif navPn.right(i == uniNavPlayer) and CONFIG.AILevel < 10 then
-                CONFIG.AILevel = CONFIG.AILevel + 1; G.sounds.Skip:Play()
+                CONFIG.AILevel = CONFIG.AILevel + 1; G.sounds.Move:Play()
             end
         elseif G.diffSelected[i] == false then
+            -- one human player: moving the mouse over a bar selects it, a click on it decides
+            local click = false
+            if i == 1 and G.mouseAllowed() then
+                local target = mouseTarget()
+                local mdx, mdy = INPUT:GetMouseDelta()
+                if target ~= nil and target ~= G.diffIndex[1] and (mdx ~= 0 or mdy ~= 0) then
+                    G.sounds.Move:Play(); G.diffIndex[1] = target
+                end
+                click = target ~= nil and target == G.diffIndex[1] and INPUT:MousePressed("Left")
+            end
             if navPn.right(i == uniNavPlayer) then
-                G.sounds.Skip:Play()
+                G.sounds.Move:Play()
                 G.diffIndex[i] = (G.diffIndex[i] + 1) % (3 + #G.diffBars)
             elseif navPn.left(i == uniNavPlayer) then
-                G.sounds.Skip:Play()
+                G.sounds.Move:Play()
                 G.diffIndex[i] = (G.diffIndex[i] - 1) % (3 + #G.diffBars)
-            elseif navPn.decide(i == uniNavPlayer) then
+            elseif navPn.decide(i == uniNavPlayer) or click then
                 if G.diffIndex[i] == 0 then
                     canceled = true
                 elseif G.diffIndex[i] == 1 then
@@ -306,7 +358,7 @@ function M.handleUpdate(ts)
                 else canceled = true end
             end
                 
-            if inputPn.auto ~= nil and INPUT:Pressed(inputPn.auto) then
+            if i <= 2 and G.shortcuts.pressed("auto_p" .. i) then
                 G.sounds.Decide:Play(); CONFIG:SetAutoStatus(i - 1, not CONFIG:GetAutoStatus(i - 1))
             end
         end

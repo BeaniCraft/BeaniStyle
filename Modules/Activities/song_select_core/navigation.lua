@@ -38,7 +38,8 @@ local function reloadPreimage(songNode)
             if G.songList == nil or G.songList:GetSelectedSongNode() ~= songNode then return end
             -- maxSize: jackets can be up to 3000x3000 (34MB decoded) but display at ~400px — decode them small.
             -- onCreate fires when the jacket is actually swapped in → start the pop-in animation then.
-            local function onCreate()
+            local function onCreate(tex)
+                tex:SetWrapMode("Border")
                 if G.songList == nil or G.songList:GetSelectedSongNode() ~= songNode then return end
                 startPreimagePop()
             end
@@ -51,10 +52,24 @@ local function reloadPreimage(songNode)
     else
         G.ctx["throttle_preimage"] = COUNTER:EmptyCounter()
     end
-    SHARED:GetSharedTexture("preimage"):SetWrapMode("Border")
 end
 
 local function playPreview(songNode)
+    -- the online lobby's preview of this song is already playing: it goes on instead of starting over
+    if G.activeConfig.songOnly and songNode.IsSong == true and SHARED:GetSharedString("presound_path") == songNode.AudioPath then
+        local snd = SHARED:GetSharedSound("presound")
+        if snd ~= nil and snd.Loaded and snd.IsPlaying then
+            G.ctx["throttle_presound"] = COUNTER:EmptyCounter()
+            local speed = CONFIG.SONGSPEED:ToActual(CONFIG.SongSpeed)
+            G.previewDurationMs   = snd:GetDurationMs()
+            G.previewDemoStartRaw = songNode.DemoStart
+            G.previewDemoStart    = math.floor(songNode.DemoStart / speed)
+            G.previewFadeTarget   = 100
+            G.previewWasPlaying   = true
+            G.previewLoaded       = true
+            return
+        end
+    end
     G.previewLoaded         = false
     G.previewDurationMs     = 0
     G.previewDemoStartRaw   = 0
@@ -75,12 +90,13 @@ local function playPreview(songNode)
             -- a folder). Only load the preview if this node is still the selected one.
             if G.songList == nil or G.songList:GetSelectedSongNode() ~= songNode then return end
             local demoStart = songNode.DemoStart
+            SHARED:SetSharedString("presound_path", songNode.AudioPath)
             SHARED:SetSharedPreviewUsingAbsolutePath("presound", songNode.AudioPath, function(snd)
                 -- The load is async too: bail if the selection moved on while it was loading, so a stale
                 -- preview never starts playing over the next box. (Just don't Play — the load doesn't
                 -- auto-play, and Stopping could cut the shared slot if it's reused for the new selection.)
                 if G.songList == nil or G.songList:GetSelectedSongNode() ~= songNode then return end
-                local speed = CONFIG.SongSpeed / 20
+                local speed = CONFIG.SONGSPEED:ToActual(CONFIG.SongSpeed)
                 snd:SetSpeed(speed)
                 snd:SetVolume(0)            -- start silent; Script.lua fades it in to full
                 snd:Play()
@@ -114,11 +130,11 @@ end
 -- (node.IsSong, chart:GetPlayerBestScore, …) allocates on each call, so per-frame reads in the draw loop
 -- stack garbage and stutter the GC. The draw code consumes only these plain-Lua caches.
 
--- The genre (song bar) colour brightened by 50% toward white — used to tint the BarLevelFill numbers so
+-- The genre (song bar) colour brightened by 25% toward white — used to tint the BarLevelFill numbers so
 -- they read as a lighter shade of the bar regardless of the chart's star rating. Precomputed per selection
 -- (never per frame) since COLOR:Create allocates. Falls back to white when the node has no box colour.
 local function brightenedFill(boxColor)
-    local function up(c) return math.min(255, math.floor(c + (255 - c) * 0.5)) end
+    local function up(c) return math.min(255, math.floor(c + (255 - c) * 0.25)) end
     if boxColor == nil then return COLOR:CreateColorFromRGBA(255, 255, 255, 255) end
     return COLOR:CreateColorFromRGBA(up(boxColor.R), up(boxColor.G), up(boxColor.B), 255)
 end
@@ -177,15 +193,50 @@ local function buildSlot(node, isSelected)
     return slot
 end
 
+-- a folder's songs, down its whole tree: the unlocked ones, and all of them but the locked mythical ones
+-- (those stay a secret); kept per folder node until the next activate
+local function folderCounts(node)
+    G.folderCountCache = G.folderCountCache or {}
+    local c = G.folderCountCache[node]
+    if c ~= nil then return c[1], c[2] end
+    local open, total = 0, 0
+    local function walk(n)
+        local children = n.Children
+        for i = 0, children.Count - 1 do
+            local ch = children[i]
+            if ch.IsSong then
+                local locked = ch.IsLocked == true
+                if not locked then open = open + 1 end
+                if not (locked and ch.Rarity == "Mythical") then total = total + 1 end
+            elseif ch.IsFolder then
+                walk(ch)
+            end
+        end
+    end
+    walk(node)
+    G.folderCountCache[node] = { open, total }
+    return open, total
+end
+
 -- selected-node info for the right panel / breadcrumb / preimage / selected-bar visuals
 local function buildSelInfo(node)
     local sel = {}
     sel.isSong, sel.isRandom = node.IsSong == true, node.IsRandom == true
+    sel.isFolder = node.IsFolder == true
     sel.crumbs = {}
     local cur = node.Parent
     while cur ~= nil do
         sel.crumbs[#sel.crumbs + 1] = cur.Title ~= nil and cur.Title or "/"
         cur = cur.Parent
+    end
+    if sel.isFolder then
+        sel.vaultFolder = G.unlocks.isVaultFolder(node)
+        sel.folderName = node.Title
+        sel.folderColor = brightenedFill(node.BoxColor)
+        sel.folderLines = {}
+        for line in (node.BoxText or ""):gmatch("[^\n]+") do sel.folderLines[#sel.folderLines + 1] = line end
+        local open, total = folderCounts(node)
+        sel.folderCount = string.format("%d / %d", open, total)
     end
     if not sel.isSong then return sel end
     sel.hi = G.unlocks.effectiveHiddenIndex(node)
@@ -397,7 +448,7 @@ local function stopHold()
 end
 
 local function doMove(dir)
-    G.sounds.Skip:Play()
+    G.sounds.Move:Play()
     G.songList:Move(dir)
     M.refreshPage()
     G.startCounter("scroll_box_anim", dir, 0, dir > 0 and -BOX_SCROLL_SECONDS or BOX_SCROLL_SECONDS, "none", function(val)
@@ -429,25 +480,31 @@ function M.handleSongSelectInput(Sort, Diff)
     -- Lock all input while a folder open/close animation is playing.
     if G.folderAnim ~= nil then return nil end
 
-    -- Debug / dev shortcuts
-    if INPUT:KeyboardPressed("S") then
-        G.sounds.Skip:Play()
+    local SC = G.shortcuts
+
+    -- the shortcuts panel
+    if SC.pressed("help") then
+        stopHold()
+        SC.open()
+        return nil
+    end
+
+    -- Displayed course / set-up player
+    if SC.pressed("course") then
+        G.sounds.Move:Play()
         CONFIG:SetDefaultCourse(0, (CONFIG:GetDefaultCourse(0) + 1) % 5)
         Sort.applySort(); M.refreshPage(true)
     end
-    if INPUT:KeyboardPressed("P") and not G.activeConfig.mountAISlotToP2 then
-        G.sounds.Skip:Play()
+    -- shortcuts.lua decides which shortcuts this select can use (player switch, auto P2, player count...)
+    if SC.pressed("player") then
+        G.sounds.Move:Play()
         local prev = G.highlightedPlayer
         G.highlightedPlayer = (G.highlightedPlayer + 1) % CONFIG.PlayerCount
         if G.highlightedPlayer ~= prev then Sort.applySort(); M.refreshPage(true) end
     end
-    if not G.activeConfig.songOnly then   -- online lobby (songOnly): Auto cannot be toggled in song select
-        for p = 1, CONFIG.PlayerCount, 1 do
-            local isAI = (G.activeConfig.mountAISlotToP2 and p == 2)
-            local inputPn = G.inputSets[p]
-            if not isAI and inputPn.auto ~= nil and INPUT:Pressed(inputPn.auto) then
-                G.sounds.Decide:Play(); CONFIG:SetAutoStatus(p - 1, not CONFIG:GetAutoStatus(p - 1))
-            end
+    for p = 1, math.min(2, CONFIG.PlayerCount), 1 do
+        if SC.pressed("auto_p" .. p) then
+            G.sounds.Decide:Play(); CONFIG:SetAutoStatus(p - 1, not CONFIG:GetAutoStatus(p - 1))
         end
     end
 
@@ -458,14 +515,35 @@ function M.handleSongSelectInput(Sort, Diff)
     elseif G.holdDir == -1 and not navPn.leftPressing() then stopHold()
     end
 
+    -- Pointer navigation (one human player only): the mouse wheel moves one song per notch (wheel down =
+    -- the next song); a touch swipe will feed the same step function later
+    local mouse = G.mouseAllowed()
+    local _, wheel = INPUT:GetScrollDelta()
+    if mouse and wheel ~= 0 and G.songList ~= nil then
+        stopHold()
+        for _ = 1, math.min(5, math.floor(math.abs(wheel) + 0.5)) do doMove(wheel < 0 and 1 or -1) end
+    end
+
+    -- a click on a bar: the selected bar decides, another bar becomes the selection
+    local clickDecide = false
+    if mouse and INPUT:MousePressed("Left") and INPUT:IsMouseInside() and G.songList ~= nil then
+        local slot = G.songListHit(INPUT:GetMouseXY())
+        if slot == 0 then
+            clickDecide = true
+        elseif slot ~= nil then
+            stopHold()
+            for _ = 1, math.abs(slot) do doMove(slot > 0 and 1 or -1) end
+        end
+    end
+
     -- Main navigation
-    if INPUT:KeyboardPressed("Space") then
+    if SC.pressed("sort") then
         stopHold()
         local sd = G.act_inner["sort_search_dialog"]
         if sd ~= nil and not sd.IsActive then
             sd:Activate(G.highlightedPlayer)
         end
-    elseif INPUT:KeyboardPressed("A") then
+    elseif SC.pressed("search") then
         stopHold()
         local sd = G.act_inner["sort_search_dialog"]
         if sd ~= nil and not sd.IsActive and G.songList ~= nil then
@@ -477,7 +555,7 @@ function M.handleSongSelectInput(Sort, Diff)
         doMove(1); startHold(1)
     elseif navPn.left() and G.songList ~= nil then
         doMove(-1); startHold(-1)
-    elseif navPn.decide() then
+    elseif navPn.decide() or clickDecide then
         stopHold()
         G.selectedSongNode = handleDecideSongSelect(Sort)
     elseif navPn.cancel() then
@@ -489,7 +567,7 @@ function M.handleSongSelectInput(Sort, Diff)
     end
 
     -- Favorites: toggle on selected song (song node, not locked, not vault-locked)
-    if (INPUT:KeyboardPressed("LeftControl") or INPUT:KeyboardPressed("RightControl")) and G.favs ~= nil then
+    if SC.pressed("favorite") and G.favs ~= nil then
         local ssn = G.songList ~= nil and G.songList:GetSelectedSongNode() or nil
         if ssn ~= nil and ssn.IsSong and not ssn.IsLocked
                 and (G.unlocks == nil or not G.unlocks.isVaultLocked(ssn)) then
@@ -501,20 +579,20 @@ function M.handleSongSelectInput(Sort, Diff)
     end
 
     -- Favorites folder: open snapshot virtual folder for the highlighted player
-    if INPUT:KeyboardPressed("O") and G.favs ~= nil then
+    if SC.pressed("favorites_folder") and G.favs ~= nil then
         G.favs.openFavoritesFolder(G.highlightedPlayer)
     end
 
     -- Song speed
-    if INPUT:KeyboardPressed("Q") then
-        G.sounds.Skip:Play()
+    if SC.pressed("speed_down") then
+        G.sounds.Move:Play()
         CONFIG.SongSpeed = CONFIG.SongSpeed - 1
         local spd = CONFIG.SONGSPEED:ToActual(CONFIG.SongSpeed)
         SHARED:GetSharedSound("presound"):SetSpeed(spd)
         if G.previewDemoStartRaw > 0 then G.previewDemoStart = math.floor(G.previewDemoStartRaw / spd) end
     end
-    if INPUT:KeyboardPressed("W") then
-        G.sounds.Skip:Play()
+    if SC.pressed("speed_up") then
+        G.sounds.Move:Play()
         CONFIG.SongSpeed = CONFIG.SongSpeed + 1
         local spd = CONFIG.SONGSPEED:ToActual(CONFIG.SongSpeed)
         SHARED:GetSharedSound("presound"):SetSpeed(spd)
@@ -522,8 +600,8 @@ function M.handleSongSelectInput(Sort, Diff)
     end
 
     -- Player count
-    if G.activeConfig.allowPlayerCount ~= false and INPUT:KeyboardPressed("L") then
-        G.sounds.Skip:Play()
+    if SC.pressed("player_count") then
+        G.sounds.Move:Play()
         CONFIG.PlayerCount = 1 + (CONFIG.PlayerCount % 5)
     end
 

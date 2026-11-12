@@ -56,4 +56,34 @@ function M.colorList(path, defaults)
     return out
 end
 
+-- JSON array of numbers → array of numbers, else the provided defaults array.
+function M.numList(path, defaults)
+    local node = get(path)
+    if node == nil then return defaults end
+    local out, i = {}, 1
+    while true do
+        local v = JSONLOADER:JsonGet(node, i)
+        if type(v) ~= "number" then break end
+        out[i] = v
+        i = i + 1
+    end
+    if #out == 0 then return defaults end
+    return out
+end
+
+-- JSON array of strings → array of strings, else the provided defaults array.
+function M.strList(path, defaults)
+    local node = get(path)
+    if node == nil then return defaults end
+    local out, i = {}, 1
+    while true do
+        local v = JSONLOADER:JsonGet(node, i)
+        if type(v) ~= "string" then break end
+        out[i] = v
+        i = i + 1
+    end
+    if #out == 0 then return defaults end
+    return out
+end
+
 return M

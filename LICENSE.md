@@ -1,5 +1,5 @@
 # BeaniStyle
-**Copyright (c) 2026 / BeaniCraft**
+> **Copyright (c) 2026 / BeaniCraft**
 
 <details>
 <summary>OpenTaiko Extended License</summary>
@@ -40,10 +40,22 @@ The primary font used in BeaniStyle is **Mochiy Pop One.**
 > This license is copied below, and is also available with a FAQ at:  
 > https://scripts.sil.org/OFL
 
+[SIL OPEN FONT LICENSE Version 1.1 <small>(26 February 2007)</small>](https://github.com/BeaniCraft/BeaniStyle/blob/main/Fonts/Mochiy_Pop_One/OFL.txt)
+
 [Google Fonts Page](https://fonts.google.com/specimen/Mochiy+Pop+One)  
 [GitHub Repo](https://github.com/fontdasu/Mochiypop)  
 
-[SIL OPEN FONT LICENSE Version 1.1 <small>(26 February 2007)</small>](https://github.com/BeaniCraft/BeaniStyle/blob/main/Fonts/Mochiy_Pop_One/OFL.txt)
+BeaniStyle also has a fallback font, which is **Rounded Mplus 1c ExtraBold.**
+
+> This Font Software is licensed under the SIL Open Font License, Version 1.1.  
+> This license is copied below, and is also available with a FAQ at:  
+> https://scripts.sil.org/OFL
+
+[SIL OPEN FONT LICENSE Version 1.1 <small>(26 February 2007)</small>](https://github.com/BeaniCraft/BeaniStyle/blob/main/Fonts/MPLUS_Rounded/OFL.txt)
+
+[Website](https://mplusfonts.github.io/)  
+[Google Fonts Page](https://fonts.google.com/specimen/M+PLUS+Rounded+1c)  
+[GitHub Repo](https://github.com/coz-m/MPLUS_FONTS)  
 
 ## Skin Credits
 Huge thanks to both the skins listed below, and their developers for helping with the development of BeaniStyle.
@@ -55,7 +67,6 @@ Huge thanks to both the skins listed below, and their developers for helping wit
 
 See [SimpleStyle (1080p) License.md](https://github.com/BeaniCraft/BeaniStyle/blob/main/Licenses/SimpleStyle%20%281080p%29%20License.md).
 
-
 * This skin was used as a base for everything, excluding the following:
     - The song select.
     - The top/up background.
@@ -64,7 +75,6 @@ See [SimpleStyle (1080p) License.md](https://github.com/BeaniCraft/BeaniStyle/bl
 
 <details>
 <summary><b>Open-World Memories V2: Gleaming Sky</b></summary>
-
 
 > **Copyright (c) 2023 / DashyDesu, OpenTaiko Team**
 
@@ -86,7 +96,6 @@ This skin is public domain/CC0.
     -  The sounds for these, although currently used, are placeholders.
 
 [GitHub Repo](https://github.com/Takkkom/OpTk-StandardStyle)
-
 </details>
 
 ## Miscellaneous Credits

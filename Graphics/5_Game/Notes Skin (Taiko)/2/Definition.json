@@ -1,0 +1,22 @@
+{
+	"Name": {
+		"strings": {
+			"default": "BeaniStyle (With Hit Explosions)"
+		}
+	},
+	"Notes": {
+		"Frames": 1,
+		"Animation": []
+	},
+	"Rolls": {
+		"Frames": 1,
+		"Animation": []
+	},
+	"Balloons": {
+		"Frames": 1,
+		"Animation": []
+	},
+	"FlyingNotesFrame": 0,
+	"PartnerNotesScale": 1.25,
+	"GiantNotesScale": 2.0
+}

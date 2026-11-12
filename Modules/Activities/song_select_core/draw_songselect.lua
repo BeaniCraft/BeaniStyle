@@ -5,16 +5,39 @@ local CFG = require("sscore_config")   -- Config/layout.json (skinner-editable);
 
 local M = {}
 -- hoisted colors (per-frame COLOR:Create* calls allocate userdata every frame); overridable via config
-local SONGLIST_GOLD = CFG.color("colors.songlist_gold", COLOR:CreateColorFromARGB(255, 242, 207, 1))   -- selected-bar title tint
 local COL_WHITE = COLOR:CreateColorFromHex("ffffffff")
-local COL_VAULT_GRAY = CFG.color("colors.vault_gray", COLOR:CreateColorFromHex("ff808080"))
-local COL_TAG_FIRE = CFG.color("colors.tag_fire", COLOR:CreateColorFromHex("ffac0c0c"))
-local COL_TAG_STORM = CFG.color("colors.tag_storm", COLOR:CreateColorFromHex("ff83159e"))
+local COL_BLACK = COLOR:CreateColorFromHex("ff000000")
 local COL_BPM_SLOW = CFG.color("colors.bpm_slow", COLOR:CreateColorFromHex("ff95ccff"))
 local COL_BPM_FAST = CFG.color("colors.bpm_fast", COLOR:CreateColorFromHex("ffff9ec3"))
 
-local statsCache = { player = -1, diff = -1 }   -- clear-count queries are save-file scans; key on (player, course)
-local G   -- shared state injected by Script.lua
+local DIFFSELECT_LEVEL_COLORS_TOP = {
+    CFG.str("colors.level.0", "#6FC2FF"),
+    CFG.str("colors.level.1", "#AEFFA3"),
+    CFG.str("colors.level.2", "#FFEC83"),
+    CFG.str("colors.level.3", "#FF5B75"),
+    CFG.str("colors.level.4", "#9671FF"),
+    CFG.str("colors.level.5", "#ABABAB")
+}
+local DIFFSELECT_LEVEL_COLORS_BOTTOM = {
+    CFG.str("colors.level.0", "#0057FF"),
+    CFG.str("colors.level.1", "#1FAA4F"),
+    CFG.str("colors.level.2", "#FF9500"),
+    CFG.str("colors.level.3", "#A80027"),
+    CFG.str("colors.level.4", "#5900A8"),
+    CFG.str("colors.level.5", "#434343")
+}
+
+-- "Boss" levels
+local SONGBAR_BOSS_LEVEL = {
+    [0] = CFG.num("boss_diff.boss_level_easy", 6),
+    [1] = CFG.num("boss_diff.boss_level_normal", 8),
+    [2] = CFG.num("boss_diff.boss_level_hard", 9),
+    [3] = CFG.num("boss_diff.boss_level_extreme", 11),
+    [4] = CFG.num("boss_diff.boss_level_extra", 11),
+}
+
+local statsCache = { player = -1, diff = -1 } -- clear-count queries are save-file scans; key on (player, course)
+local G -- shared state injected by Script.lua
 
 -- ── Layout constants (defaults; overridable via Config/layout.json) ─────────────
 local SONGLIST_ORIGIN_X = CFG.num("song_list.origin_x", 650)
@@ -31,14 +54,61 @@ local SONGBAR_LEVEL_X_OFFSET = CFG.num("song_list.level_x_offset", 12)
 local SONGBAR_LEVEL_Y_OFFSET = CFG.num("song_list.level_y_offset", 10)
 local BARLEFT_X_OFFSET = CFG.num("song_list.barleft_x_offset", 1) -- pixels left of bar.png topleft
 
+-- the random bar's rainbow: RAINBOW_STEPS hues made once, pastel enough for the
+-- title to stay readable; the rainbow runs along the bar, one full pass every RAINBOW_MS
+local RAINBOW_MS     = CFG.num("song_list.random_rainbow_ms", 2500)
+local RAINBOW_STEPS  = CFG.num("song_list.random_rainbow_steps", 128)
+local RAINBOW_SLICE  = CFG.num("song_list.random_rainbow_slice", 4) -- px per tinted slice of the bar
+local RAINBOW_SPAN   = CFG.num("song_list.random_rainbow_span", 0.35) -- hue turns across the bar
+local RAINBOW = {}
+for i = 0, RAINBOW_STEPS - 1 do
+    local h, s, v = i / RAINBOW_STEPS * 6, 0.5, 1
+    local c = v * s
+    local x = c * (1 - math.abs(h % 2 - 1))
+    local r, g, b = 0, 0, 0
+    if h < 1 then r, g = c, x elseif h < 2 then r, g = x, c elseif h < 3 then g, b = c, x
+    elseif h < 4 then g, b = x, c elseif h < 5 then r, b = x, c else r, b = c, x end
+    local m = v - c
+    RAINBOW[i] = COLOR:CreateColorFromARGB(255, math.floor((r + m) * 255 + 0.25), math.floor((g + m) * 255 + 0.25),
+        math.floor((b + m) * 255 + 0.25))
+end
+
 local FAV_ICON_OFFSET_X = CFG.num("song_list.fav_icon_x_offset", 535)
 local FAV_ICON_OFFSET_Y = CFG.num("song_list.fav_icon_y_offset", 8)
+
+-- the "[key] - Show shortcuts" line under the header overlay: position and its slow opacity pulse
+local HELPER_X = CFG.num("song_list.shortcuts_helper_x", 8)
+local HELPER_Y = CFG.num("song_list.shortcuts_helper_y", 114)
+local HELPER_PULSE_MS = CFG.num("song_list.shortcuts_helper_pulse_ms", 2400)
+local HELPER_OPACITY_MIN = CFG.num("song_list.shortcuts_helper_opacity_min", 0.45)
+local HELPER_PAD_X = CFG.num("song_list.shortcuts_helper_pad_x", 16) -- the dark box around the line
+local HELPER_PAD_Y = CFG.num("song_list.shortcuts_helper_pad_y", 8)
+local HELPER_BOX_ALPHA = CFG.num("song_list.shortcuts_helper_box_alpha", 150)
+local HELPER_BOX_RADIUS = CFG.num("song_list.shortcuts_helper_box_radius", 10)
+
+-- the clickable part of a song bar (mouse), in Bars/bar.png pixels from its top-left corner
+local BAR_HIT_LEFT = CFG.num("song_list.hit_left", 4)
+local BAR_HIT_RIGHT = CFG.num("song_list.hit_right", 686)
+local BAR_HIT_TOP = CFG.num("song_list.hit_top", 4)
+local BAR_HIT_BOTTOM = CFG.num("song_list.hit_bottom", 75)
+
+-- the folder info placeholder: a folder (bg_folderinfo.png) tinted with the folder's colour, its top
+-- centred on the info column; the rows of its name, description lines and song count
+local FOLDERINFO_CENTER_X  = CFG.num("folder_info.center_x", 1548)
+local FOLDERINFO_PANEL_Y   = CFG.num("folder_info.panel_y", 270)
+local FOLDERINFO_WIDTH     = CFG.num("folder_info.width", 600)
+local FOLDERINFO_NAME_Y    = CFG.num("folder_info.name_y", 382)
+local FOLDERINFO_TEXT_Y    = CFG.num("folder_info.text_y", 478)
+local FOLDERINFO_LINE_GAP  = CFG.num("folder_info.line_gap", 48)
+local FOLDERINFO_COUNT_Y   = CFG.num("folder_info.count_y", 668)
+local FOLDERINFO_COUNT_GAP = CFG.num("folder_info.count_gap", 54)
 
 local SONGINFO_DIFFICULTIES_ORIGIN_X = CFG.num("song_info.difficulties_origin_x", 1798)
 local SONGINFO_DIFFICULTIES_ORIGIN_Y = CFG.num("song_info.difficulties_origin_y", 146)
 local SONGINFO_DIFFICULTIES_GAP_Y = CFG.num("song_info.difficulties_gap_y", 104)
 local SONGINFO_DIFFICULTIES_LEVEL_ORIGIN_X = CFG.num("song_info.difficulties_level_origin_x", 65)
 local SONGINFO_DIFFICULTIES_LEVEL_ORIGIN_Y = CFG.num("song_info.difficulties_level_origin_y", 39)
+local SONGINFO_DIFFICULTIES_LEVEL_MWIDTH = CFG.num("song_info.difficulties_level_max_width", 150)
 local SONGINFO_HASVIDEO_ORIGIN_X = CFG.num("song_info.has_video_origin_x", 1247)
 local SONGINFO_HASVIDEO_ORIGIN_Y = CFG.num("song_info.has_video_origin_y", 815)
 local SONGINFO_EXPLICIT_ORIGIN_X = CFG.num("song_info.explicit_origin_x", 1247)
@@ -54,10 +124,10 @@ local SONGINFO_INFO_ORIGIN_Y = CFG.num("song_info.info_origin_y", 714)
 local SONGINFO_INFO_GAP_Y = CFG.num("song_info.info_gap_y", 30)
 local SONGINFO_INFO_MWIDTH = CFG.num("song_info.info_max_width", 540)
 
-local PREIMAGE_ORIGIN_X = CFG.num("preimage.origin_x", 1278)
-local PREIMAGE_ORIGIN_Y = CFG.num("preimage.origin_y", 146)
-local PREIMAGE_SIZE_X = CFG.num("preimage.size_x", 504)
-local PREIMAGE_SIZE_Y = CFG.num("preimage.size_y", 504)
+local PREIMAGE_ORIGIN_X = CFG.num("song_info.preimage.origin_x", 1278)
+local PREIMAGE_ORIGIN_Y = CFG.num("song_info.preimage.origin_y", 146)
+local PREIMAGE_SIZE_X = CFG.num("song_info.preimage.size_x", 504)
+local PREIMAGE_SIZE_Y = CFG.num("song_info.preimage.size_y", 504)
 
 local HEADER_OFFSET_X = CFG.num("header.offset_x", 1876)
 local HEADER_BOX_TEXT_OFFSET_X = CFG.num("header.box_text_offset_x", 227)
@@ -94,10 +164,6 @@ local function formatNumber(n, decimals)
     return s
 end
 
-local function formatLevel(str)
-    return (str:gsub("%.0$", ""))
-end
-
 -- lv = the slot's cached { lv, lvDecimal, diff, isPlus, isVault } (nil when the node has no chart)
 local function drawLevelTag(lv, x, y)
     if lv == nil then return end
@@ -105,17 +171,20 @@ local function drawLevelTag(lv, x, y)
     local labelW = G.bars["levellabels"].Width
 
     if lv.isVault then
-        -- Vault songs: animated strip (same frame counter as storm)
-        G.bars["levellabelsvault"]:DrawRectAtAnchor(x, y, 0, labelH * G.levelLabelFrame, labelW, labelH, "center")
+        G.bars["levellabels_boss_5"]:DrawRectAtAnchor(x, y, 0, labelH * G.levelLabelFrame, labelW, labelH, "center")
+    elseif lv.diff <= 4 and lv.lv >= SONGBAR_BOSS_LEVEL[lv.diff] then
+        G.bars["levellabels_boss_" .. lv.diff]:DrawRectAtAnchor(x, y, 0, labelH * G.levelLabelFrame, labelW, labelH, "center")
     elseif lv.diff < 3 or lv.lv <= 10 then
         G.bars["levellabels"]:DrawRectAtAnchor(x, y, 0, labelH * lv.diff, labelW, labelH, "center")
-    elseif lv.diff == 3 then
-        G.bars["levellabelsfire"]:DrawRectAtAnchor(x, y, 0, labelH * G.levelLabelFrame, labelW, labelH, "center")
-    else
-        G.bars["levellabelsstorm"]:DrawRectAtAnchor(x, y, 0, labelH * G.levelLabelFrame, labelW, labelH, "center")
     end
+    G.textLarge:Draw(G.formatLevel(tostring(lv.lvDecimal)), x + SONGBAR_LEVEL_X_OFFSET, y + SONGBAR_LEVEL_Y_OFFSET, nil, nil, G.songSelectElemOpacity / 255, 1, 140, "center")
+end
 
-    G.textLarge:Draw(formatLevel(tostring(lv.lvDecimal)), x + SONGBAR_LEVEL_X_OFFSET, y + SONGBAR_LEVEL_Y_OFFSET, nil, nil, G.songSelectElemOpacity / 255, 1, 120, "center")
+local function drawTag(type, x, y)
+    if type == "folder" then
+        G.bars["bar_folder"]:DrawAtAnchor(x, y, "center")
+    elseif type == "random" then
+    end
 end
 
 -- Draw fav.png at x=39 y=80 relative to bar.png top-left (the favorite flag is cached in the page slot).
@@ -183,7 +252,9 @@ local function drawPreimage()
         -- Pop-in: scale the jacket around its centre from pop_start_scale up to 1.0 with a short overshoot
         -- when a new one appears (navigation.lua drives G.preimagePopScale). Centre-anchored so it grows in place.
         local pop = G.preimagePopScale or 1
-        tex:SetScale(PREIMAGE_SIZE_X / tex.Height * pop, PREIMAGE_SIZE_Y / tex.Width * pop)
+        -- one scale for both axes: a jacket that is not square fits inside the frame, centred
+        local fit = math.min(PREIMAGE_SIZE_X / tex.Width, PREIMAGE_SIZE_Y / tex.Height) * pop
+        tex:SetScale(fit, fit)
         tex:DrawAtAnchor(PREIMAGE_ORIGIN_X + PREIMAGE_SIZE_X / 2, PREIMAGE_ORIGIN_Y + PREIMAGE_SIZE_Y / 2, "center")
         tex:SetScale(1, 1)
     end
@@ -191,7 +262,26 @@ end
 
 -- ── Song-list bar drawing (shared by the normal list + the folder open/close animation) ─────
 local function drawBarTitle(pt, x, y)
-    G.text:Draw(pt.text, x, y, pt.gold and SONGLIST_GOLD or nil, nil, G.songSelectElemOpacity / 255, 1, SONGLIST_TEXT_MWIDTH, "center")
+    if pt.gold then
+        G.text:Draw("<g.#ffb035.#ff6100>" .. pt.text .. "</g>", x, y, nil, nil, G.songSelectElemOpacity / 255, 1, SONGLIST_TEXT_MWIDTH, "center")
+    else
+        G.text:Draw(pt.text, x, y, nil, nil, G.songSelectElemOpacity / 255, 1, SONGLIST_TEXT_MWIDTH, "center")
+    end
+end
+
+-- the random bar: bar.png drawn in narrow vertical slices, each tinted the hue its place and the time give,
+-- so the rainbow runs along the bar (whole pixels, so the slices meet without seams)
+local function drawRainbowBar(xpos, ypos)
+    local tex = G.bars["bar"]
+    local w, h = tex.Width, tex.Height
+    local x0, y0 = math.floor(xpos - w / 2 + 0.5), math.floor(ypos - h / 2 + 0.5)
+    local shift = (G.nowMs or 0) % RAINBOW_MS / RAINBOW_MS
+    for sx = 0, w - 1, RAINBOW_SLICE do
+        local hue = (sx / w * RAINBOW_SPAN - shift) % 1
+        tex:SetColor(RAINBOW[math.floor(hue * RAINBOW_STEPS) % RAINBOW_STEPS])
+        tex:DrawRectAtAnchor(x0 + sx, y0, sx, 0, math.min(RAINBOW_SLICE, w - sx), h, "topleft")
+    end
+    tex:SetColor(COL_WHITE)
 end
 
 -- Draw one song-list bar's full visuals (bar art + overlays + title + level tag) at (xpos, ypos).
@@ -233,12 +323,12 @@ local function drawBar(tx, xpos, ypos)
             G.genre_overlays[tx.genre]:DrawAtAnchor(xpos, ypos, "center")
             if tx.fav then drawFavIcon(xpos, ypos) end
             if tx.isSong then drawBarleft(tx.barleft, xpos, ypos) end
+            if tx.isFolder then drawTag("folder", xpos + SONGBAR_LABEL_X_OFFSET, ypos) end
             drawLevelTag(tx.level, xpos + SONGBAR_LABEL_X_OFFSET, ypos)
             drawBarTitle(tx, xpos + SONGLIST_TEXT_OFFSET_X, ypos + SONGLIST_TEXT_OFFSET_Y)
         end
     elseif tx.isRandom then
-        G.bars["random"]:DrawAtAnchor(xpos, ypos, "center")
-        drawBarTitle(tx, xpos + SONGLIST_TEXT_OFFSET_X, ypos + SONGLIST_TEXT_OFFSET_Y)
+        drawRainbowBar(xpos, ypos)
     elseif tx.isReturn then
         G.bars["back"]:DrawAtAnchor(xpos, ypos, "center")
         drawBarTitle(tx, xpos + SONGLIST_TEXT_OFFSET_X, ypos + SONGLIST_TEXT_OFFSET_Y)
@@ -253,6 +343,48 @@ function M.barPos(i, dist)
     local ypos = SONGLIST_ORIGIN_Y + (i + dist) * SONGLIST_OFFSET_Y
     if i == 0 then xpos = xpos + SONGLIST_SELECTED_X_DIFF end
     return xpos, ypos
+end
+
+-- the list slot (-7..7) whose bar is under (mx, my), or nil (mouse support)
+function M.hitTest(mx, my)
+    local tex = G.bars["bar"]
+    if tex == nil or G.pageTexts == nil then return nil end
+    local hw, hh = tex.Width / 2, tex.Height / 2
+    for i = -7, 7 do
+        if G.pageTexts[i] ~= nil then
+            local cx, cy = M.barPos(i, G.selectBoxDist)
+            local lx, ly = mx - (cx - hw), my - (cy - hh)
+            if lx >= BAR_HIT_LEFT and lx <= BAR_HIT_RIGHT and ly >= BAR_HIT_TOP and ly <= BAR_HIT_BOTTOM then return i end
+        end
+    end
+    return nil
+end
+
+-- ── The shortcuts helper line: white glyph text on a rounded dark box sized to it ─────────
+local helperBox = nil          -- { canvas, w, h, text }: rebaked when the text changes (language, binding)
+local function drawHelperLine(text, opacity)
+    local gf = G.textStats
+    local inkH = math.ceil(gf.LineHeight)
+    local pad = gf.BoxHeight - inkH            -- the glyph box's padding around the ink
+    if helperBox == nil or helperBox.text ~= text then
+        if helperBox ~= nil then helperBox.canvas:Dispose() end
+        local w = math.ceil(gf:Measure(text)) + 2 * HELPER_PAD_X
+        local h = inkH + 2 * HELPER_PAD_Y
+        local cv = CANVAS:CreateCanvas(w, h)
+        cv:ClearTransparent()
+        local r = math.max(0, math.min(HELPER_BOX_RADIUS, math.floor(h / 2)))
+        cv:FillRect(r, 0, w - 2 * r, h, 0, 0, 0, HELPER_BOX_ALPHA)
+        cv:FillRect(0, r, w, h - 2 * r, 0, 0, 0, HELPER_BOX_ALPHA)
+        for _, c in ipairs({ { r, r }, { w - r - 1, r }, { r, h - r - 1 }, { w - r - 1, h - r - 1 } }) do
+            cv:FillCircle(c[1], c[2], r, 0, 0, 0, HELPER_BOX_ALPHA)
+        end
+        cv:Upload()
+        helperBox = { canvas = cv, w = w, h = h, text = text }
+    end
+    helperBox.canvas:SetOpacity(opacity)
+    helperBox.canvas:Draw(HELPER_X, HELPER_Y)
+    helperBox.canvas:SetOpacity(1)
+    gf:Draw(text, HELPER_X + HELPER_PAD_X - pad, HELPER_Y + HELPER_PAD_Y, COL_WHITE, COL_BLACK, opacity, 1, 0, "topleft")
 end
 
 -- ── Folder open/close animation ─────────────────────────────────────────────────
@@ -363,6 +495,25 @@ function M.drawPanel()
         G.bgtx["randominfo"]:DrawAtAnchor(1920, 0, "topright")
     end
 
+    -- folder info (placeholder): its name, its box.def description, and its unlocked / total songs
+    if sel ~= nil and sel.isFolder and not sel.vaultFolder then
+        local cx = FOLDERINFO_CENTER_X - G.songSelectShift
+        local panel = G.bgtx["folderinfo"]
+        panel:SetColor(sel.folderColor or COL_WHITE)
+        panel:DrawAtAnchor(cx, FOLDERINFO_PANEL_Y, "top")
+        panel:SetColor(COL_WHITE)
+        G.textLarge:Draw(sel.folderName or "", cx, FOLDERINFO_NAME_Y, nil, nil, 1, 1, FOLDERINFO_WIDTH, "top")
+        for i, line in ipairs(sel.folderLines) do
+            G.text:Draw(line, cx, FOLDERINFO_TEXT_Y + (i - 1) * FOLDERINFO_LINE_GAP, nil, nil, 1, 1, FOLDERINFO_WIDTH, "top")
+        end
+        if G.folderSongsLabel == nil then
+            local ok, s = pcall(function() return THEME:GetSkinString("SONGSELECT_FOLDER_SONGS") end)
+            G.folderSongsLabel = (ok and type(s) == "string" and s ~= "" and s:sub(1, 1) ~= "[") and s or "Songs"
+        end
+        G.textStats:Draw(G.folderSongsLabel, cx, FOLDERINFO_COUNT_Y, nil, nil, 1, 1, FOLDERINFO_WIDTH, "top")
+        G.textLarge:Draw(sel.folderCount, cx, FOLDERINFO_COUNT_Y + FOLDERINFO_COUNT_GAP, nil, nil, 1, 1, FOLDERINFO_WIDTH, "top")
+    end
+
     if sel ~= nil and sel.isSong then
         -- BLURED / vault locked: skip the song info panel entirely
         if sel.hi < 2 then
@@ -390,9 +541,9 @@ function M.drawPanel()
                         difftx:SetOpacity(opacityNorm)
 
                         G.textLarge:Draw(
-                            formatLevel(tostring(chart.levelDecimal)),
+                            "<g." .. DIFFSELECT_LEVEL_COLORS_TOP[i + 1] .. "." .. DIFFSELECT_LEVEL_COLORS_BOTTOM[i + 1] .. ">" .. G.formatLevel(tostring(chart.levelDecimal)) .. "</g>",
                             xpos + SONGINFO_DIFFICULTIES_LEVEL_ORIGIN_X, ypos + SONGINFO_DIFFICULTIES_LEVEL_ORIGIN_Y, 
-                            nil, nil, opacityNorm, 1, 115, "center"
+                            nil, nil, opacityNorm, 1, SONGINFO_DIFFICULTIES_LEVEL_MWIDTH, "center"
                         )
                     elseif chart == nil then
                         -- Vault songs: never show the "missing" indicator
@@ -418,7 +569,7 @@ function M.drawPanel()
 
             if sel.bpmBase ~= nil then
                 -- rebuild the BPM string/color only when the song-speed multiplier changes
-                local mult = CONFIG.SongSpeed / 20
+                local mult = CONFIG.SONGSPEED:ToActual(CONFIG.SongSpeed)
                 if sel.bpmMult ~= mult then
                     sel.bpmMult = mult
                     local bpmText = formatNumber(sel.bpmBase * mult, 3)
@@ -485,12 +636,19 @@ function M.drawPanel()
 
     SHARED:GetSharedTexture("header_overlay"):SetOpacity(opacityNorm)
     SHARED:GetSharedTexture("header_overlay"):Draw(0, 0)
+    -- the shortcuts helper line under the overlay (song select only: it fades with the panel)
+    local helper = G.shortcuts and G.shortcuts.helperText()
+    if helper ~= nil and opacityNorm > 0 then
+        local pulse = 0.5 + 0.5 * math.sin(2 * math.pi * (G.nowMs or 0) / HELPER_PULSE_MS)
+        drawHelperLine(helper, opacityNorm * (HELPER_OPACITY_MIN + (1 - HELPER_OPACITY_MIN) * pulse))
+    end
 
     -- Unlock conditions panel (shown when a locked song is highlighted)
     G.unlocks.drawCondsPanel()
     G.unlocks.drawVaultCondsPanel()
 
-    -- Nameplates
+    -- Nameplates (the online lobby shows its players itself)
+    if G.activeConfig.songOnly then return end
     local playerCount = CONFIG.PlayerCount
     G.highlightedPlayer = G.highlightedPlayer % playerCount
 
@@ -501,7 +659,7 @@ function M.drawPanel()
         local ssCharaX = x0 + G.bgtx["nameplate_info"].Width / 2
         G.bgtx["nameplate_info"]:Draw(x0, y0)
         G.drawPlayerChara(G.highlightedPlayer, ssCharaX, y0 + NAMEPLATE_OFFSET_Y, 1, 1, opacityNorm, false)
-        G.drawPlayerPuchi(G.highlightedPlayer, ssCharaX - PUCHI_OFFSET_X, y0 + NAMEPLATE_OFFSET_Y + G.puchiSineY, 1, 1, opacityNorm)
+        G.drawPlayerPuchi(G.highlightedPlayer, ssCharaX - PUCHI_OFFSET_X, y0 + NAMEPLATE_OFFSET_Y + G.puchiSineY, 1, 1, opacityNorm, false, G.puchiIdxFrame)
         NAMEPLATE:DrawPlayerNameplate(x0 + NAMEPLATE_OFFSET_X, y0 + NAMEPLATE_OFFSET_Y, G.songSelectElemOpacity, G.highlightedPlayer)
 
         -- Perfect / FC / Clear counts for the highlighted player at the displayed difficulty
